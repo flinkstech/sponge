@@ -27,101 +27,98 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"log"
 	"os"
+	"os/exec"
 )
 
 const BufferSize = 64 * 1024 // 64 KiB
 
 func CheckError(err error) {
 	if err != nil {
-		panic(err)
+		log.Fatal(err)
 	}
 }
 
+func init() {
+	log.SetFlags(0)
+	log.SetPrefix("sponge: ")
+}
+
 func main() {
-	var (
-		writeFileName = ""
-		regularFile   = true
-		appendFile    = false
-
-		buffer = make([]byte, BufferSize)
-
-		writeFile   *os.File
-		tmpFile     *os.File
-		tmpFileName string
-		err         error
-	)
-
-	flag.BoolVar(&appendFile, "a", false, "append")
+	appendFile := flag.Bool("a", false, "append")
 	flag.Usage = func() {
 		_, _ = fmt.Fprintf(os.Stderr, "%s [-a] [file]: soak up all input from stdin and write it to [file] or stdout\n", os.Args[0])
 	}
 	flag.Parse()
-	writeFileName = flag.Arg(0)
 
-	tmpFile, err = ioutil.TempFile("", "sponge-*.tmp")
+	writeFileName := flag.Arg(0)
+
+	tmpFile, err := ioutil.TempFile("", "sponge-*.tmp")
 	CheckError(err)
-	tmpFileName = tmpFile.Name()
+	defer func(tmpFile *os.File) {
+		if tmpFile == nil {
+			return // File was closed elsewhere
+		}
 
-	_, err = io.CopyBuffer(tmpFile, os.Stdin, buffer)
-	if err != nil {
-		tmpFile.Close()
+		tmpFileName := tmpFile.Name()
+		_ = tmpFile.Close()
 		_ = os.Remove(tmpFileName)
-		CheckError(err)
-	}
+	}(tmpFile)
+
+	buf := make([]byte, BufferSize)
+
+	_, err = io.CopyBuffer(tmpFile, os.Stdin, buf)
+	CheckError(err)
 
 	_, err = tmpFile.Seek(io.SeekStart, 0)
-	if err != nil {
-		tmpFile.Close()
-		_ = os.Remove(tmpFileName)
+	CheckError(err)
+
+	var out io.Writer
+	if writeFileName != "" {
+		regularFile := true
+		fileInfo, err := os.Stat(writeFileName)
+		if err != nil {
+			if !os.IsNotExist(err) {
+				CheckError(err)
+			}
+		} else {
+			regularFile = fileInfo.Mode().IsRegular()
+		}
+
+		if regularFile && !*appendFile {
+			tmpFileName := tmpFile.Name()
+			tmpFile.Close()
+			tmpFile = nil
+
+			err = os.Rename(tmpFileName, writeFileName)
+			if err != nil {
+				// Fall back to mv
+				cmd := exec.Command("mv", tmpFileName, writeFileName)
+				err = cmd.Run()
+			}
+			CheckError(err)
+
+			return
+		}
+
+		openFlags := os.O_WRONLY
+		if regularFile {
+			openFlags |= os.O_CREATE
+		}
+		if *appendFile {
+			openFlags |= os.O_APPEND
+		}
+
+		writeFile, err := os.OpenFile(writeFileName, openFlags, 0644)
 		CheckError(err)
+		defer writeFile.Close()
+
+		out = writeFile
+	} else {
+		out = os.Stdout
 	}
 
-	if writeFileName == "" {
-		_, err = io.CopyBuffer(os.Stdout, tmpFile, buffer)
-
-		tmpFile.Close()
-		_ = os.Remove(tmpFileName)
-		CheckError(err)
-
-		return
-	}
-
-	if fi, err := os.Stat(writeFileName); err == nil {
-		regularFile = fi.Mode().IsRegular()
-	} else if !os.IsNotExist(err) {
-		tmpFile.Close()
-		_ = os.Remove(tmpFileName)
-		CheckError(err)
-	}
-
-	if regularFile && !appendFile {
-		tmpFile.Close()
-		err = os.Rename(tmpFileName, writeFileName)
-		CheckError(err)
-
-		return
-	}
-
-	openFlags := os.O_WRONLY
-	if regularFile {
-		openFlags |= os.O_CREATE
-	}
-	if appendFile {
-		openFlags |= os.O_APPEND
-	}
-
-	writeFile, err = os.OpenFile(writeFileName, openFlags, 0644)
-	if err != nil {
-		tmpFile.Close()
-		_ = os.Remove(tmpFileName)
-		CheckError(err)
-	}
-
-	_, err = io.CopyBuffer(writeFile, tmpFile, buffer)
-
-	tmpFile.Close()
-	writeFile.Close()
-	_ = os.Remove(tmpFileName)
+	_, err = io.CopyBuffer(out, tmpFile, buf)
 	CheckError(err)
 }
