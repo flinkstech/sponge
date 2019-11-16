@@ -21,6 +21,9 @@ go get git.sr.ht/~tslocum/sponge
 sponge [-a] [file]: soak up all input from stdin and write it to [file] or stdout
 ```
 
+## Support
+
+Please share issues and suggestions [here](https://todo.sr.ht/~tslocum/sponge).
 
 ## Credits
 
