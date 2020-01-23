@@ -1,5 +1,5 @@
 // sponge - Soaks up all input from stdin and writes it to a file or stdout
-// https://git.sr.ht/~tslocum/sponge
+// https://gitlab.com/tslocum/sponge
 //
 // Originally written in C by Tollef Fog Heen
 // https://joeyh.name/code/moreutils
