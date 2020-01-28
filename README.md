@@ -6,25 +6,19 @@
 Soaks up all input from stdin and writes it to a file or stdout. Pipelines
 reading from and writing to the same file may be safely constructed.
 
-```
-grep [...] log.txt | sponge log.txt
-```
+```grep [...] log.txt | sponge log.txt```
 
 ## Installation
 
-```
-go get gitlab.com/tslocum/sponge
-```
+```go get gitlab.com/tslocum/sponge```
 
 ## Usage
 
-```
-sponge [-a] [file]: soak up all input from stdin and write it to [file] or stdout
-```
+```sponge [-a] [file]: soak up all input from stdin and write it to [file] or stdout```
 
 ## Support
 
-Please share issues and suggestions [here](https://gitlab.com/tslocum/sponge).
+Please share issues and suggestions [here](https://gitlab.com/tslocum/sponge/issues).
 
 ## Credits
 
